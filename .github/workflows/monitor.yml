@@ -1,0 +1,68 @@
+name: Montmartre-Vignes Reservierungs-Monitor
+
+on:
+  # Zeitgesteuerter Lauf. Absichtlich NICHT auf einer runden 10er-Marke
+  # (00,10,20,...), sondern versetzt (03,13,23,...) - zu runden Marken
+  # drängen sich weltweit besonders viele Scheduled Workflows, was laut
+  # GitHub zu größeren Verzögerungen führen kann.
+  #
+  # [unsure] GitHub garantiert bei "schedule"-Events KEINE Pünktlichkeit
+  # ("best effort", Mindestintervall 5 Minuten, bei hoher Last auch mal
+  # deutlich später). Für ein zeitkritisches Monitoring wie dieses ist
+  # das ein reales Restrisiko, das bei einem eigenen Server nicht
+  # bestünde.
+  schedule:
+    - cron: "3,13,23,33,43,53 * * * *"
+
+  # Erlaubt manuelles Auslösen über den "Run workflow"-Button im
+  # Actions-Tab von GitHub, z. B. zum Testen.
+  workflow_dispatch: {}
+
+# Nötig, damit dieser Workflow den aktualisierten Status-Verlauf
+# (data/historique_statuts.jsonl) per "git push" zurück ins Repo
+# schreiben darf.
+permissions:
+  contents: write
+
+# Verhindert, dass sich zwei Läufe überlappen und sich beim Zurück-
+# Committen der Historie gegenseitig in die Quere kommen. Statt einen
+# laufenden Job abzubrechen (cancel-in-progress: true), wird ein
+# überlappender Lauf hier in die Warteschlange gestellt, damit keine
+# Prüfung verloren geht.
+concurrency:
+  group: montmartre-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements.txt
+
+      - name: Prüflauf ausführen
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
+
+      - name: Aktualisierten Status-Verlauf zurück ins Repo committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/historique_statuts.jsonl
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen an der Historie, kein Commit nötig."
+          else
+            git commit -m "chore: Status-Verlauf aktualisiert [skip ci]"
+            git push
+          fi
