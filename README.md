@@ -92,11 +92,87 @@ sie sich geändert hat.
 
 GitHub liefert `schedule`-Events nur „best effort“, ohne Pünktlichkeits-
 garantie – bei hoher Auslastung der Actions-Infrastruktur können Läufe
-sich um mehrere Minuten verzögern. Für ein zeitkritisches Monitoring wie
-dieses (Plätze könnten sehr schnell weg sein) ist das ein reales, nicht
-wegzudiskutierendes Risiko, das bei einem eigenen Dauer-Server nicht
-bestünde. Falls dir das zu unsicher wird, bleibt ein „Always Free“-Server
-(z. B. Oracle Cloud) die zuverlässigere, aber aufwändigere Alternative.
+sich um mehrere Minuten, teils über eine Stunde verzögern, gelegentlich
+fallen einzelne Läufe auch ganz aus. Für ein zeitkritisches Monitoring
+wie dieses (Plätze könnten sehr schnell weg sein) war das ein reales,
+nicht wegzudiskutierendes Risiko. Deshalb wurde der interne
+`schedule`-Trigger entfernt und durch einen externen Trigger ersetzt –
+siehe nächster Abschnitt.
+
+## Externer Trigger via cron-job.org (statt GitHub's eigenem Scheduler)
+
+Der Workflow wird jetzt nicht mehr von GitHub selbst nach Zeitplan
+gestartet, sondern von außen: der kostenlose Dienst
+[cron-job.org](https://cron-job.org) ruft in festen Abständen einen
+GitHub-API-Endpunkt auf, der den Workflow per `workflow_dispatch`
+auslöst. Das ist in der Praxis deutlich pünktlicher, weil ein einzelner,
+leichtgewichtiger HTTP-Call nicht durch GitHub's eigene, teils
+überlastete Scheduling-Warteschlange muss.
+
+### 1. Fine-grained Personal Access Token (PAT) bei GitHub erzeugen
+
+GitHub → Profilbild → **Settings** → ganz unten links **Developer
+settings** → **Personal access tokens** → **Fine-grained tokens** →
+**Generate new token**.
+
+- **Token name:** z. B. `cron-job-org-montmartre-monitor`
+- **Expiration:** z. B. 90 Tage (kürzer = sicherer, du musst ihn dann
+  aber regelmäßig erneuern)
+- **Repository access:** **Only select repositories** → dein
+  Montmartre-Monitor-Repo auswählen (NICHT „All repositories“)
+- **Permissions → Repository permissions → Actions:** auf
+  **Read and write** stellen (das ist die einzige Berechtigung, die
+  für das Auslösen des Workflows gebraucht wird)
+- Token generieren und den angezeigten Wert (beginnt mit `github_pat_…`)
+  **sofort kopieren** – er wird danach nie wieder angezeigt.
+
+### 2. Bei cron-job.org einen Job einrichten
+
+Kostenloser Account auf [cron-job.org](https://cron-job.org) (eigener
+Account, unabhängig von GitHub). Dann **„Create cronjob“**:
+
+- **Title:** z. B. `Montmartre Monitor Trigger`
+- **URL:**
+  ```
+  https://api.github.com/repos/<dein-github-user>/<dein-repo-name>/actions/workflows/monitor.yml/dispatches
+  ```
+- **Request method:** `POST`
+- **Common → Save responses:** ruhig aktivieren, hilft beim Debuggen
+- **Headers** (bei „Advanced“ bzw. im Job-Editor unter „Headers“):
+  | Name | Wert |
+  |---|---|
+  | `Authorization` | `Bearer <dein-PAT-hier-einfügen>` |
+  | `Accept` | `application/vnd.github+json` |
+  | `Content-Type` | `application/json` |
+  | `X-GitHub-Api-Version` | `2022-11-28` |
+- **Request body:**
+  ```json
+  {"ref": "main"}
+  ```
+  (`main` durch den Namen deines Default-Branch ersetzen, falls der
+  anders heißt)
+- **Schedule:** z. B. „every 10 minutes“ (cron-job.org erlaubt bis zu
+  1-Minuten-Takt, kostenlos, unbegrenzt viele Jobs)
+
+Über den **„Test run“**-Button im Job-Editor kannst du sofort prüfen, ob
+der Aufruf funktioniert, ohne auf den nächsten Zeitplan-Tick zu warten –
+bei Erfolg antwortet die GitHub-API mit Status **204 No Content**, und
+im Actions-Tab deines Repos sollte fast augenblicklich ein neuer,
+manuell wirkender Lauf auftauchen.
+
+### Sicherheitsrahmen des Tokens
+
+- Der Token ist **kein GitHub-Passwort** – ein separat erzeugter,
+  jederzeit einzeln widerrufbarer Schlüssel.
+- Er wirkt **nur auf das eine ausgewählte Repository**, nicht auf deinen
+  gesamten Account.
+- Er kann **ausschließlich** Actions auslösen/verwalten – nichts an
+  Code, Issues, Einstellungen usw.
+- Läuft automatisch nach der gewählten Frist ab; du kannst ihn jederzeit
+  vorzeitig unter GitHub → Settings → Developer settings → Personal
+  access tokens widerrufen.
+- Er liegt ausschließlich bei cron-job.org als Header-Wert deines Jobs –
+  nirgends im Code oder Repo.
 
 ## Alternative: lokal per Cron (eigener Rechner/Server)
 

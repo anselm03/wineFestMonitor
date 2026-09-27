@@ -1,21 +1,18 @@
 name: Montmartre-Vignes Reservierungs-Monitor
 
 on:
-  # Zeitgesteuerter Lauf. Absichtlich NICHT auf einer runden 10er-Marke
-  # (00,10,20,...), sondern versetzt (03,13,23,...) - zu runden Marken
-  # drängen sich weltweit besonders viele Scheduled Workflows, was laut
-  # GitHub zu größeren Verzögerungen führen kann.
+  # HINWEIS: Der frühere "schedule"-Trigger von GitHub selbst wurde
+  # bewusst ENTFERNT (siehe README). GitHub garantiert bei schedule-
+  # Events keine Pünktlichkeit - Verzögerungen von mehreren Minuten
+  # bis über einer Stunde sind laut GitHub-Doku möglich, ganze Läufe
+  # können sogar ausfallen. Stattdessen triggert jetzt ein externer
+  # Dienst (cron-job.org) diesen Workflow zuverlässiger von außen über
+  # die GitHub-API (workflow_dispatch, siehe README-Abschnitt
+  # "Externer Trigger via cron-job.org").
   #
-  # [unsure] GitHub garantiert bei "schedule"-Events KEINE Pünktlichkeit
-  # ("best effort", Mindestintervall 5 Minuten, bei hoher Last auch mal
-  # deutlich später). Für ein zeitkritisches Monitoring wie dieses ist
-  # das ein reales Restrisiko, das bei einem eigenen Server nicht
-  # bestünde.
-  schedule:
-    - cron: "3,13,23,33,43,53 * * * *"
-
-  # Erlaubt manuelles Auslösen über den "Run workflow"-Button im
-  # Actions-Tab von GitHub, z. B. zum Testen.
+  # workflow_dispatch bleibt erhalten für:
+  #   a) den externen Trigger von cron-job.org,
+  #   b) manuelles Auslösen über den "Run workflow"-Button zum Testen.
   workflow_dispatch: {}
 
 # Nötig, damit dieser Workflow den aktualisierten Status-Verlauf
