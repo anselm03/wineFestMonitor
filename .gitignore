@@ -1,0 +1,14 @@
+# Geheimnisse niemals ins Repo
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Lokale Logs (bei GitHub Actions ohnehin im Workflow-Run einsehbar,
+# müssen also nicht extra committet werden)
+logs/*.log
+
+# data/historique_statuts.jsonl wird BEWUSST NICHT ignoriert -
+# genau diese Datei committet der GitHub-Actions-Workflow automatisch
+# zurück, damit der Verlauf über Runner-Neustarts hinweg erhalten bleibt.
