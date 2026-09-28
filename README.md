@@ -99,6 +99,23 @@ nicht wegzudiskutierendes Risiko. Deshalb wurde der interne
 `schedule`-Trigger entfernt und durch einen externen Trigger ersetzt –
 siehe nächster Abschnitt.
 
+## Telegram-Versand isoliert testen
+
+Ein regulärer Lauf schickt bei „complet“ bewusst keine Nachricht. Um
+Bot-Token und Chat-ID trotzdem zu prüfen, gibt es einen Testmodus, der
+Seitenabruf, Statusprüfung und History überspringt und nur eine
+Testnachricht sendet:
+
+- **Auf GitHub:** Actions-Tab → Workflow auswählen → **Run workflow** →
+  Häkchen bei „Nur Telegram-Testnachricht senden“ setzen → starten.
+- **Lokal:** `MONTMARTRE_TEST_NOTIFICATION=1 python main.py` (benötigt
+  eine lokale `.env` mit echten Zugangsdaten).
+
+Kommt die Nachricht an, funktioniert der Versand. Kommt sie nicht an,
+steht der Grund im Log des Laufs (z. B. fehlende Secrets oder eine
+falsche Chat-ID). Beim externen Aufruf über cron-job.org ist der Schalter
+nicht gesetzt, dort läuft also immer die normale Prüfung.
+
 ## Externer Trigger via cron-job.org (statt GitHub's eigenem Scheduler)
 
 Der Workflow wird jetzt nicht mehr von GitHub selbst nach Zeitplan

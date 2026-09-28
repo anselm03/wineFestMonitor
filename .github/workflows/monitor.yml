@@ -13,7 +13,12 @@ on:
   # workflow_dispatch bleibt erhalten für:
   #   a) den externen Trigger von cron-job.org,
   #   b) manuelles Auslösen über den "Run workflow"-Button zum Testen.
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      test_notification:
+        description: "Nur Telegram-Testnachricht senden (Seitenprüfung überspringen)"
+        type: boolean
+        default: false
 
 # Nötig, damit dieser Workflow den aktualisierten Status-Verlauf
 # (data/historique_statuts.jsonl) per "git push" zurück ins Repo
@@ -50,6 +55,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MONTMARTRE_TEST_NOTIFICATION: ${{ inputs.test_notification }}
         run: python main.py
 
       - name: Aktualisierten Status-Verlauf zurück ins Repo committen

@@ -23,11 +23,17 @@ fängt ``main()`` das ab, loggt den vollständigen Traceback und schickt
 trotzdem noch eine Telegram-Notfall-Nachricht ("Hand, die sich aus dem
 Wasser streckt") – damit ein Totalausfall nicht lautlos im Cron-Log
 verschwindet, sondern du aktiv benachrichtigt wirst.
+Zusätzlich gibt es einen Test-Modus, der die komplette Prüflogik
+überspringt und nur eine Testnachricht sendet (Umgebungsvariable
+``MONTMARTRE_TEST_NOTIFICATION=1`` bzw. der entsprechende Input beim
+manuellen "Run workflow" auf GitHub) – so lässt sich der Telegram-Versand
+isoliert testen, unabhängig vom aktuellen Reservierungsstatus der Seite.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import traceback
 
@@ -40,6 +46,14 @@ from notifier import send_telegram_message
 URL_CIBLE = (
     "https://fetedesvendangesdemontmartre.com/evenement/les-visites-des-vignes/#form"
 )
+
+# Umgebungsvariable, um NUR eine Telegram-Testnachricht zu senden, ohne
+# die Seite abzurufen oder die History zu beschreiben. Praktisch, um den
+# Telegram-Versand isoliert zu testen, unabhängig vom aktuellen Status
+# der Zielseite (z. B. wenn diese gerade "complet" zeigt und ein
+# regulärer Lauf deshalb ohnehin keine Nachricht senden würde).
+ENV_VAR_TEST_NOTIFICATION = "MONTMARTRE_TEST_NOTIFICATION"
+_WERTE_WAHR = {"1", "true", "yes", "on"}
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +167,33 @@ def _executer_prufung() -> int:
     return 0
 
 
+def _test_modus_aktiv() -> bool:
+    """Prüft, ob der reine Telegram-Testmodus angefordert wurde."""
+    return os.environ.get(ENV_VAR_TEST_NOTIFICATION, "").strip().lower() in _WERTE_WAHR
+
+
+def _executer_test_notification() -> int:
+    """Sendet ausschließlich eine Telegram-Testnachricht.
+
+    Überspringt Abruf, Statusprüfung und History komplett, damit der
+    Telegram-Versand isoliert und unabhängig vom aktuellen Zustand der
+    Zielseite getestet werden kann.
+
+    Returns:
+        0, wenn die Nachricht versendet wurde, sonst 1.
+    """
+    logger.info("Test-Modus aktiv: sende nur eine Telegram-Testnachricht.")
+    message = (
+        "✅ Testnachricht vom Montmartre-Monitor.\n\n"
+        "Wenn du das liest, funktionieren Bot-Token und Chat-ID. "
+        "Es wurde keine Seitenprüfung durchgeführt."
+    )
+    if send_telegram_message(message):
+        return 0
+    logger.error("Testnachricht konnte nicht gesendet werden (Details siehe oben).")
+    return 1
+
+
 def main() -> int:
     try:
         configure_logging()
@@ -169,6 +210,8 @@ def main() -> int:
         )
 
     try:
+        if _test_modus_aktiv():
+            return _executer_test_notification()
         return _executer_prufung()
     except Exception as exc:  # bewusst breit: allerletztes Sicherheitsnetz
         _gerer_crash_complet(exc)
